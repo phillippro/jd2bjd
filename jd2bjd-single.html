@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JD → BJD 转换器</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #eee;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 30px;
+        }
+        h1 { text-align: center; margin-bottom: 10px; color: #00d4ff; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #aaa; }
+        input, select {
+            width: 100%; padding: 12px; background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+            color: #fff; font-size: 16px;
+        }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .btn {
+            width: 100%; padding: 14px; background: linear-gradient(90deg, #00d4ff, #7b2ff7);
+            border: none; border-radius: 8px; color: white; font-size: 16px; cursor: pointer;
+        }
+        .result {
+            margin-top: 30px; padding: 20px; background: rgba(0,212,255,0.1);
+            border-radius: 12px; display: none;
+        }
+        .result.show { display: block; }
+        .result-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .result-label { color: #aaa; }
+        .result-value { color: #00d4ff; font-family: monospace; font-size: 18px; }
+        .info { margin-top: 30px; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 12px; font-size: 13px; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔭 JD → BJD 转换器</h1>
+        <p class="subtitle">儒略日 (JD) → 质心儒略日 (BJD-TDB)</p>
+        
+        <div class="row">
+            <div class="form-group">
+                <label>JD (儒略日)</label>
+                <input type="number" id="jd" placeholder="例如: 2460000.5" step="0.0001">
+            </div>
+            <div class="form-group">
+                <label>观测站</label>
+                <select id="observatory">
+                    <option value="shanghai">上海天文台</option>
+                    <option value="mauna_kea">Mauna Kea (夏威夷)</option>
+                    <option value="paranal">Paranal (智利)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="form-group">
+                <label>赤经 RA (度)</label>
+                <input type="number" id="ra" value="83.633" step="0.001">
+            </div>
+            <div class="form-group">
+                <label>赤纬 Dec (度)</label>
+                <input type="number" id="dec" value="-5.391" step="0.001">
+            </div>
+        </div>
+        
+        <button class="btn" onclick="convert()">转换</button>
+        
+        <div class="result" id="result">
+            <div class="result-item"><span class="result-label">输入 JD</span><span class="result-value" id="res-jd"></span></div>
+            <div class="result-item"><span class="result-label">BJD-TDB</span><span class="result-value" id="res-bjd"></span></div>
+            <div class="result-item"><span class="result-label">光行时修正 (秒)</span><span class="result-value" id="res-ltt"></span></div>
+        </div>
+        
+        <div class="info">
+            <p>⚠️ 这是简化版，仅使用近似计算</p>
+            <p>精确版本需要 Python + Astropy</p>
+        </div>
+    </div>
+    
+    <script>
+    // 简化版：只计算近似值（不使用 Astropy）
+    const JD_J2000 = 2451545.0;
+    const DEG2RAD = Math.PI / 180;
+    
+    // 观测站近似坐标 (度)
+    const OBS = {
+        shanghai: {lon: 121.54, lat: 31.22},
+        mauna_kea: {lon: -155.48, lat: 19.82},
+        paranal: {lon: -70.40, lat: -24.63}
+    };
+    
+    function convert() {
+        const jd = parseFloat(document.getElementById('jd').value);
+        const ra = parseFloat(document.getElementById('ra').value) * DEG2RAD;
+        const dec = parseFloat(document.getElementById('dec').value) * DEG2RAD;
+        const obsName = document.getElementById('observatory').value;
+        
+        if (!jd) { alert('请输入 JD'); return; }
+        
+        const obs = OBS[obsName];
+        const obsLon = obs.lon * DEG2RAD;
+        const obsLat = obs.lat * DEG2RAD;
+        
+        // 计算儒略世纪数
+        const T = (jd - JD_J2000) / 36525;
+        
+        // 地球轨道参数 (近似)
+        const L0 = 280.46646 + 36000.76983 * T;  // 平黄经
+        const M = 357.52911 + 35999.05029 * T;   // 平近点角
+        const e = 0.016708634 - 0.000042037 * T; // 偏心率
+        
+        // 太阳几何平黄经
+        const omega = 125.04 - 1934.136 * T;
+        const L = L0 - 1.914666 * Math.sin(M*DEG2RAD) - 0.019994 * Math.sin(2*M*DEG2RAD);
+        
+        // 计算地球在黄道坐标系的位置 (AU)
+        const v = M + (2*e - 0.25*e*e*e) * Math.sin(M*DEG2RAD);
+        const r = 1.000001018 * (1 - e*e) / (1 + e*Math.cos(v*DEG2RAD));
+        
+        // 转换为赤道坐标系
+        const eps = (23.439291 - 0.0130042 * T) * DEG2RAD; // 倾角
+        const x_earth = r * Math.cos(L*DEG2RAD);
+        const y_earth = r * Math.sin(L*DEG2RAD) * Math.cos(eps);
+        
+        // 计算光行时修正 (近似)
+        // LTT = (R·S) / c, 其中 R 是地球位置，S 是目标方向
+        const cos_ra = Math.cos(ra);
+        const ltt_days = (x_earth * cos_ra * Math.cos(dec) + y_earth * Math.sin(dec)) / 173.14463267;
+        
+        // BJD ≈ JD + LTT (简化)
+        const bjd = jd + ltt_days;
+        
+        // 显示结果
+        document.getElementById('res-jd').textContent = jd.toFixed(6);
+        document.getElementById('res-bjd').textContent = bjd.toFixed(6);
+        document.getElementById('res-ltt').textContent = (ltt_days * 86400).toFixed(3) + " 秒";
+        
+        document.getElementById('result').classList.add('show');
+    }
+    
+    // 默认当前时间
+    document.getElementById('jd').value = Math.floor(Date.now()/86400000 + 2440587.5);
+    </script>
+</body>
+</html>
