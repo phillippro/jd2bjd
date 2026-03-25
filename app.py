@@ -89,6 +89,9 @@ def jd_to_bjd(jd, ra, dec, obs_name='Shanghai', parallax=0, pmra=0, pmdec=0, rv_
     # BJD_TDB = TDB + LTT correction
     bjd_tdb = t_tdb + ltt
     
+    # Transform to ICRS (barycentric) and get cartesian coordinates
+    earth_bary = earth.transform_to('icrs')
+    cart = earth_bary.cartesian
     return {
         'bjd_tdb': bjd_tdb.value,
         'tdb': t_tdb.value,
@@ -101,10 +104,13 @@ def get_earth_position(jd):
     """Get Earth position in barycentric coordinate system"""
     t = Time(jd, format='jd', scale='utc')
     earth = get_body('earth', t)
+    # Transform to ICRS (barycentric) and get cartesian coordinates
+    earth_bary = earth.transform_to('icrs')
+    cart = earth_bary.cartesian
     return {
-        'x_au': earth.x.to(u.AU).value,
-        'y_au': earth.y.to(u.AU).value,
-        'z_au': earth.z.to(u.AU).value,
+        'x_au': cart.x.to(u.AU).value,
+        'y_au': cart.y.to(u.AU).value,
+        'z_au': cart.z.to(u.AU).value,
     }
 
 
