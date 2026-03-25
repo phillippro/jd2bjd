@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JD → BJD 转换器</title>
+    <title>JD → BJD Converter</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -47,55 +47,55 @@
 </head>
 <body>
     <div class="container">
-        <h1>🔭 JD → BJD 转换器</h1>
-        <p class="subtitle">儒略日 (JD) → 质心儒略日 (BJD-TDB)</p>
+        <h1>🔭 JD → BJD Converter</h1>
+        <p class="subtitle">Julian Date (JD) → Barycentric Julian Date (BJD-TDB)</p>
         
         <div class="row">
             <div class="form-group">
-                <label>JD (儒略日)</label>
-                <input type="number" id="jd" placeholder="例如: 2460000.5" step="0.0001">
+                <label>JD (Julian Date)</label>
+                <input type="number" id="jd" placeholder="e.g., 2460000.5" step="0.0001">
             </div>
             <div class="form-group">
-                <label>观测站</label>
+                <label>Observatory</label>
                 <select id="observatory">
-                    <option value="shanghai">上海天文台</option>
-                    <option value="mauna_kea">Mauna Kea (夏威夷)</option>
-                    <option value="paranal">Paranal (智利)</option>
+                    <option value="shanghai">Shanghai Observatory</option>
+                    <option value="mauna_kea">Mauna Kea (Hawaii)</option>
+                    <option value="paranal">Paranal (Chile)</option>
                 </select>
             </div>
         </div>
         
         <div class="row">
             <div class="form-group">
-                <label>赤经 RA (度)</label>
+                <label>Right Ascension RA (degrees)</label>
                 <input type="number" id="ra" value="83.633" step="0.001">
             </div>
             <div class="form-group">
-                <label>赤纬 Dec (度)</label>
+                <label>Declination Dec (degrees)</label>
                 <input type="number" id="dec" value="-5.391" step="0.001">
             </div>
         </div>
         
-        <button class="btn" onclick="convert()">转换</button>
+        <button class="btn" onclick="convert()">Convert</button>
         
         <div class="result" id="result">
-            <div class="result-item"><span class="result-label">输入 JD</span><span class="result-value" id="res-jd"></span></div>
+            <div class="result-item"><span class="result-label">Input JD</span><span class="result-value" id="res-jd"></span></div>
             <div class="result-item"><span class="result-label">BJD-TDB</span><span class="result-value" id="res-bjd"></span></div>
-            <div class="result-item"><span class="result-label">光行时修正 (秒)</span><span class="result-value" id="res-ltt"></span></div>
+            <div class="result-item"><span class="result-label">LTT Correction (seconds)</span><span class="result-value" id="res-ltt"></span></div>
         </div>
         
         <div class="info">
-            <p>⚠️ 这是简化版，仅使用近似计算</p>
-            <p>精确版本需要 Python + Astropy</p>
+            <p>⚠️ This is a simplified version using approximate calculations</p>
+            <p>For precision, use Python + Astropy</p>
         </div>
     </div>
     
     <script>
-    // 简化版：只计算近似值（不使用 Astropy）
+    // Simplified version: approximate calculation only (no Astropy)
     const JD_J2000 = 2451545.0;
     const DEG2RAD = Math.PI / 180;
     
-    // 观测站近似坐标 (度)
+    // Observatory approximate coordinates (degrees)
     const OBS = {
         shanghai: {lon: 121.54, lat: 31.22},
         mauna_kea: {lon: -155.48, lat: 19.82},
@@ -108,50 +108,50 @@
         const dec = parseFloat(document.getElementById('dec').value) * DEG2RAD;
         const obsName = document.getElementById('observatory').value;
         
-        if (!jd) { alert('请输入 JD'); return; }
+        if (!jd) { alert('Please enter JD'); return; }
         
         const obs = OBS[obsName];
         const obsLon = obs.lon * DEG2RAD;
         const obsLat = obs.lat * DEG2RAD;
         
-        // 计算儒略世纪数
+        // Calculate Julian centuries
         const T = (jd - JD_J2000) / 36525;
         
-        // 地球轨道参数 (近似)
-        const L0 = 280.46646 + 36000.76983 * T;  // 平黄经
-        const M = 357.52911 + 35999.05029 * T;   // 平近点角
-        const e = 0.016708634 - 0.000042037 * T; // 偏心率
+        // Earth orbital parameters (approximate)
+        const L0 = 280.46646 + 36000.76983 * T;  // Mean longitude
+        const M = 357.52911 + 35999.05029 * T;   // Mean anomaly
+        const e = 0.016708634 - 0.000042037 * T; // Eccentricity
         
-        // 太阳几何平黄经
+        // Sun's geometric mean longitude
         const omega = 125.04 - 1934.136 * T;
         const L = L0 - 1.914666 * Math.sin(M*DEG2RAD) - 0.019994 * Math.sin(2*M*DEG2RAD);
         
-        // 计算地球在黄道坐标系的位置 (AU)
+        // Earth position in ecliptic coordinates (AU)
         const v = M + (2*e - 0.25*e*e*e) * Math.sin(M*DEG2RAD);
         const r = 1.000001018 * (1 - e*e) / (1 + e*Math.cos(v*DEG2RAD));
         
-        // 转换为赤道坐标系
-        const eps = (23.439291 - 0.0130042 * T) * DEG2RAD; // 倾角
+        // Convert to equatorial coordinates
+        const eps = (23.439291 - 0.0130042 * T) * DEG2RAD; // Obliquity
         const x_earth = r * Math.cos(L*DEG2RAD);
         const y_earth = r * Math.sin(L*DEG2RAD) * Math.cos(eps);
         
-        // 计算光行时修正 (近似)
-        // LTT = (R·S) / c, 其中 R 是地球位置，S 是目标方向
+        // Calculate light-travel time correction (approximate)
+        // LTT = (R·S) / c, where R is Earth position, S is target direction
         const cos_ra = Math.cos(ra);
         const ltt_days = (x_earth * cos_ra * Math.cos(dec) + y_earth * Math.sin(dec)) / 173.14463267;
         
-        // BJD ≈ JD + LTT (简化)
+        // BJD ≈ JD + LTT (simplified)
         const bjd = jd + ltt_days;
         
-        // 显示结果
+        // Display results
         document.getElementById('res-jd').textContent = jd.toFixed(6);
         document.getElementById('res-bjd').textContent = bjd.toFixed(6);
-        document.getElementById('res-ltt').textContent = (ltt_days * 86400).toFixed(3) + " 秒";
+        document.getElementById('res-ltt').textContent = (ltt_days * 86400).toFixed(3) + " sec";
         
         document.getElementById('result').classList.add('show');
     }
     
-    // 默认当前时间
+    // Default to current time
     document.getElementById('jd').value = Math.floor(Date.now()/86400000 + 2440587.5);
     </script>
 </body>

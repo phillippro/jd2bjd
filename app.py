@@ -1,11 +1,11 @@
 """
-JD → BJD 转换服务
-使用 Astropy 进行高精度天体测量计算
+JD → BJD Converter Service
+High-precision astrometry calculations using Astropy
 
-考虑:
-1. 地球轨道运动 (质心修正)
-2. 恒星视差和自行 (可选)
-3. 光行时效应
+Consider:
+1. Earth orbital motion (barycenter correction)
+2. Stellar parallax and proper motion (optional)
+3. Light-travel time effect
 """
 
 from flask import Flask, render_template_string, request, jsonify
@@ -16,15 +16,15 @@ import math
 
 app = Flask(__name__)
 
-# 默认观测站点 (上海天文台)
+# Default Observatory (Shanghai Observatory)
 DEFAULT_OBSERVATORY = {
     'name': 'Shanghai',
-    'lon': 121.54,  # 经度
-    'lat': 31.22,   # 纬度
-    'height': 7     # 海拔 (米)
+    'lon': 121.54,  # Longitude
+    'lat': 31.22,   # Latitude
+    'height': 7     # Elevation (meters)
 }
 
-# 著名观测站
+# Famous Observatories
 OBSERVATORIES = {
     'Shanghai': {'lon': 121.54, 'lat': 31.22, 'height': 7},
     'Mauna Kea': {'lon': -155.48, 'lat': 19.82, 'height': 4207},
@@ -38,55 +38,55 @@ OBSERVATORIES = {
 
 def jd_to_bjd(jd, ra, dec, obs_name='Shanghai', parallax=0, pmra=0, pmdec=0, rv_star=0):
     """
-    将 JD 转换为 BJD
+    Convert JD to BJD
     
-    参数:
-    - jd: 儒略日 (可以是单个值或列表)
-    - ra: 赤经 (度或 'HH:MM:SS' 格式)
-    - dec: 赤纬 (度或 'DD:MM:SS' 格式)
-    - obs_name: 观测站名称
-    - parallax: 视差 (mas)
-    - pmra: 赤经自行 (mas/yr)
-    - pmdec: 赤纬自行 (mas/yr)
-    - rv_star: 恒星视向速度 (km/s)
+    Parameters:
+    - jd: Julian Date (can be a single value or list)
+    - ra: Right Ascension (degrees or "HH:MM:SS")
+    - dec: Declination (degrees or "DD:MM:SS")
+    - obs_name: Observatory name
+    - parallax: Parallax (mas)
+    - pmra: Proper motion RA (mas/yr)
+    - pmdec: Proper motion Dec (mas/yr)
+    - rv_star: Radial Velocity (km/s)
     
-    返回:
-    - BJD_TDB (质心儒略日，质心坐标系)
+    Returns:
+    - BJD_TDB (Barycentric Julian Date，barycentric coordinate system)
     """
     
-    # 获取观测站位置
+    # Get Observatory location
     obs = OBSERVATORIES.get(obs_name, DEFAULT_OBSERVATORY)
     location = EarthLocation(lon=obs['lon']*u.deg, 
                             lat=obs['lat']*u.deg, 
                             height=obs['height']*u.m)
     
-    # 创建目标坐标
+    # Create target coordinates
     if isinstance(ra, str):
         coord = SkyCoord(ra=ra, dec=dec, unit=(u.hourangle, u.deg))
     else:
         coord = SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
     
-    # 添加视差和自行
+    # Add parallax and proper motion
     if parallax > 0:
         coord.distance = (1000/parallax) * u.pc
     if pmra != 0 or pmdec != 0:
         coord.pm_ra_cosdec = pmra * u.mas/u.yr
         coord.pm_dec = pmdec * u.mas/u.yr
     
-    # 转换为时间对象
+    # Convert to time object
     if isinstance(jd, (list, tuple)):
         t = Time(jd, format='jd', scale='utc', location=location)
     else:
         t = Time(jd, format='jd', scale='utc', location=location)
     
-    # 转换为 TDB (质心动力学时) - 这已经包含了地球轨道运动的修正
+    # Convert to TDB (barycentric dynamical time) - includes Earth orbital correction
     t_tdb = t.tdb
     
-    # 计算光行时 (Light Travel Time Correction)
-    # 这是由于地球-质心距离变化引起的
+    # Calculate light-travel time (LTT)
+    # This is due to Earth-barycenter distance change
     ltt = t_tdb.light_travel_time(coord)
     
-    # BJD_TDB = TDB + 光行时修正
+    # BJD_TDB = TDB + LTT correction
     bjd_tdb = t_tdb + ltt
     
     return {
@@ -98,7 +98,7 @@ def jd_to_bjd(jd, ra, dec, obs_name='Shanghai', parallax=0, pmra=0, pmdec=0, rv_
 
 
 def get_earth_position(jd):
-    """获取地球在质心坐标系中的位置"""
+    """Get Earth position in barycentric coordinate system"""
     t = Time(jd, format='jd', scale='utc')
     earth = get_body('earth', t)
     return {
@@ -118,7 +118,7 @@ def convert():
     data = request.json
     
     try:
-        # 解析输入
+        # Parse input
         jd = float(data.get('jd', 0))
         ra = data.get('ra', '0')
         dec = data.get('dec', '0')
@@ -128,12 +128,12 @@ def convert():
         pmdec = float(data.get('pmdec', 0))
         
         if jd == 0:
-            return jsonify({'error': '请输入有效的 JD'})
+            return jsonify({'error': 'Please enter a valid JD'})
         
-        # 转换
+        # Convert
         result = jd_to_bjd(jd, ra, dec, obs_name, parallax, pmra, pmdec)
         
-        # 获取地球位置（用于教学展示）
+        # Get Earth position (for demonstration)
         earth_pos = get_earth_position(jd)
         
         return jsonify({
@@ -162,7 +162,7 @@ def convert():
 
 @app.route('/batch', methods=['POST'])
 def batch_convert():
-    """批量转换多个 JD"""
+    """Batch convert multiple JD values"""
     data = request.json
     
     try:
@@ -188,11 +188,11 @@ def batch_convert():
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JD → BJD 转换器</title>
+    <title>JD → BJD Converter</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -311,73 +311,73 @@ HTML_TEMPLATE = '''
 </head>
 <body>
     <div class="container">
-        <h1>🔭 JD → BJD 转换器</h1>
-        <p class="subtitle">儒略日 (JD) → 质心儒略日 (BJD-TDB)</p>
+        <h1>🔭 JD → BJD Converter</h1>
+        <p class="subtitle">Julian Date (JD) → Barycentric Julian Date (BJD-TDB)</p>
         
         <div class="row">
             <div class="form-group">
-                <label>JD (儒略日)</label>
-                <input type="number" id="jd" placeholder="例如: 2460000.5" step="0.0001">
+                <label>JD (Julian Date)</label>
+                <input type="number" id="jd" placeholder="e.g., 2460000.5" step="0.0001">
             </div>
             <div class="form-group">
-                <label>观测站</label>
+                <label>Observatory</label>
                 <select id="observatory">
-                    <option value="Shanghai">上海天文台</option>
-                    <option value="Mauna Kea">Mauna Kea (夏威夷)</option>
-                    <option value="Paranal">Paranal (智利)</option>
-                    <option value="La Silla">La Silla (智利)</option>
-                    <option value="McDonald">McDonald (德州)</option>
-                    <option value="Siding Spring">Siding Spring (澳洲)</option>
-                    <option value="Cerro Tololo">Cerro Tololo (智利)</option>
+                    <option value="Shanghai">Shanghai Observatory</option>
+                    <option value="Mauna Kea">Mauna Kea (Hawaii)</option>
+                    <option value="Paranal">Paranal (Chile)</option>
+                    <option value="La Silla">La Silla (Chile)</option>
+                    <option value="McDonald">McDonald (Texas)</option>
+                    <option value="Siding Spring">Siding Spring (Australia)</option>
+                    <option value="Cerro Tololo">Cerro Tololo (Chile)</option>
                 </select>
             </div>
         </div>
         
         <div class="row">
             <div class="form-group">
-                <label>赤经 RA (度 或 HH:MM:SS)</label>
-                <input type="text" id="ra" placeholder="例如: 83.633 或 05:34:32" value="83.633">
+                <label>Right Ascension RA (degrees or HH:MM:SS)</label>
+                <input type="text" id="ra" placeholder="e.g., 83.633 or 05:34:32" value="83.633">
             </div>
             <div class="form-group">
-                <label>赤纬 Dec (度 或 DD:MM:SS)</label>
-                <input type="text" id="dec" placeholder="例如: -5.391 或 -05:23:28" value="-5.391">
+                <label>Declination Dec (degrees or DD:MM:SS)</label>
+                <input type="text" id="dec" placeholder="e.g., -5.391 or -05:23:28" value="-5.391">
             </div>
         </div>
         
         <div class="row">
             <div class="form-group">
-                <label>视差 parallax (mas)</label>
-                <input type="number" id="parallax" placeholder="例如: 76.29" step="0.01" value="0">
+                <label>Parallax (mas)</label>
+                <input type="number" id="parallax" placeholder="e.g., 76.29" step="0.01" value="0">
             </div>
             <div class="form-group">
-                <label>恒星视向速度 (km/s)</label>
-                <input type="number" id="rv" placeholder="例如: 5.2" step="0.1" value="0">
+                <label>Radial Velocity (km/s)</label>
+                <input type="number" id="rv" placeholder="e.g., 5.2" step="0.1" value="0">
             </div>
         </div>
         
         <div class="row">
             <div class="form-group">
-                <label>赤经自行 pmRA (mas/yr)</label>
-                <input type="number" id="pmra" placeholder="例如: 3.5" step="0.01" value="0">
+                <label>Proper Motion RA (mas/yr)</label>
+                <input type="number" id="pmra" placeholder="e.g., 3.5" step="0.01" value="0">
             </div>
             <div class="form-group">
-                <label>赤纬自行 pmDec (mas/yr)</label>
-                <input type="number" id="pmdec" placeholder="例如: -5.8" step="0.01" value="0">
+                <label>Proper Motion Dec (mas/yr)</label>
+                <input type="number" id="pmdec" placeholder="e.g., -5.8" step="0.01" value="0">
             </div>
         </div>
         
-        <button class="btn" onclick="convert()">转换</button>
+        <button class="btn" onclick="convert()">Convert</button>
         
-        <div class="loading" id="loading">计算中...</div>
+        <div class="loading" id="loading">Calculating...</div>
         
         <div class="result" id="result">
-            <h3>🎯 转换结果</h3>
+            <h3>🎯 Conversion Results</h3>
             <div class="result-item">
-                <span class="result-label">输入 JD (UTC)</span>
+                <span class="result-label">Input JD (UTC)</span>
                 <span class="result-value" id="res-jd"></span>
             </div>
             <div class="result-item">
-                <span class="result-label">BJD-TDB (质心)</span>
+                <span class="result-label">BJD-TDB (Barycenter)</span>
                 <span class="result-value" id="res-bjd"></span>
             </div>
             <div class="result-item">
@@ -385,34 +385,34 @@ HTML_TEMPLATE = '''
                 <span class="result-value" id="res-tdb"></span>
             </div>
             <div class="result-item">
-                <span class="result-label">光行时修正 (天)</span>
+                <span class="result-label">Light-travel Time (days)</span>
                 <span class="result-value" id="res-ltt-d"></span>
             </div>
             <div class="result-item">
-                <span class="result-label">光行时修正 (秒)</span>
+                <span class="result-label">Light-travel Time (sec)</span>
                 <span class="result-value" id="res-ltt-s"></span>
             </div>
             <div class="result-item">
-                <span class="result-label">地球位置 X (AU)</span>
+                <span class="result-label">Earth Position X (AU)</span>
                 <span class="result-value" id="res-ex"></span>
             </div>
             <div class="result-item">
-                <span class="result-label">地球位置 Y (AU)</span>
+                <span class="result-label">Earth Position Y (AU)</span>
                 <span class="result-value" id="res-ey"></span>
             </div>
             <div class="result-item">
-                <span class="result-label">地球位置 Z (AU)</span>
+                <span class="result-label">Earth Position Z (AU)</span>
                 <span class="result-value" id="res-ez"></span>
             </div>
         </div>
         
         <div class="info">
-            <h4>📖 说明</h4>
-            <p>• <b>JD</b>: 儒略日，从公元前4713年1月1日正午开始计算的日数</p>
-            <p>• <b>BJD-TDB</b>: 质心儒略日，以太阳系质心为参考点的时间</p>
-            <p>• <b>光行时修正</b>: 地球到质心距离变化导致的时间差，最大约 ±16分钟</p>
-            <p>• <b>视差</b>: 输入视差可以获得更精确的恒星距离修正</p>
-            <p>• <b>自行</b>: 恒星的固有运动，对长时间跨度的观测很重要</p>
+            <h4>📖 Explanation</h4>
+            <p>• <b>JD</b>: Julian Date, days since noon January 1, 4713 BC</p>
+            <p>• <b>BJD-TDB</b>: Barycentric Julian Date, referenced to solar system barycenter</p>
+            <p>• <b>Light-travel Time Correction</b>: Time difference due to Earth-barycenter distance, ~±16 minutes</p>
+            <p>• <b>Parallax</b>: Enter parallax for more accurate stellar distance correction</p>
+            <p>• <b>Proper Motion</b>: Stellar proper motion, important for observations spanning long periods</p>
         </div>
     </div>
     
@@ -420,7 +420,7 @@ HTML_TEMPLATE = '''
         async function convert() {
             const jd = document.getElementById('jd').value;
             if (!jd) {
-                alert('请输入 JD');
+                alert('Please enter JD');
                 return;
             }
             
@@ -461,13 +461,13 @@ HTML_TEMPLATE = '''
                 document.getElementById('result').classList.add('show');
                 
             } catch (e) {
-                alert('错误: ' + e);
+                alert('Error: ' + e);
             } finally {
                 document.getElementById('loading').classList.remove('show');
             }
         }
         
-        // 默认使用当前时间
+        // Default to current time
         document.getElementById('jd').value = Math.floor(Date.now()/86400000 + 2440587.5);
     </script>
 </body>
@@ -476,6 +476,6 @@ HTML_TEMPLATE = '''
 
 
 if __name__ == '__main__':
-    print("启动 JD→BJD 转换服务...")
-    print("请访问: http://localhost:5000")
+    print("Starting JD→BJD Converter Service...")
+    print("Please visit: http://localhost:5000")
     app.run(host='0.0.0.0', port=5000, debug=True)
