@@ -20,9 +20,10 @@ import math
 def lookup_object(query):
     """
     Look up object by name or parse coordinates.
+    Supports: common names, Hipparcos (HIP), Henry Draper (HD), Gliese (GJ), etc.
     
     Args:
-        query: Object name (e.g., "Tau Ceti") or coordinates "RA, Dec"
+        query: Object name (e.g., "Tau Ceti", "HIP 71683", "HD 209458")
         
     Returns:
         dict with 'ra' (degrees), 'dec' (degrees), 'name' (if found)
@@ -46,16 +47,30 @@ def lookup_object(query):
             name = str(result['main_id'][0])
             return {'ra': ra, 'dec': dec, 'name': name}
     except Exception as e:
-        # Try with capitalized first letter
-        try:
-            result = Simbad.query_object(query.title())
-            if result is not None and len(result) > 0:
-                ra = float(result['ra'][0])
-                dec = float(result['dec'][0])
-                name = str(result['main_id'][0])
-                return {'ra': ra, 'dec': dec, 'name': name}
-        except:
-            pass
+        # Try different capitalizations
+        for variant in [query.upper(), query.lower(), query.title()]:
+            try:
+                result = Simbad.query_object(variant)
+                if result is not None and len(result) > 0:
+                    ra = float(result['ra'][0])
+                    dec = float(result['dec'][0])
+                    name = str(result['main_id'][0])
+                    return {'ra': ra, 'dec': dec, 'name': name}
+            except:
+                continue
+        
+        # Try adding "HIP" prefix if not present
+        if not query.upper().startswith('HIP'):
+            try:
+                result = Simbad.query_object('HIP ' + query)
+                if result is not None and len(result) > 0:
+                    ra = float(result['ra'][0])
+                    dec = float(result['dec'][0])
+                    name = str(result['main_id'][0])
+                    return {'ra': ra, 'dec': dec, 'name': name}
+            except:
+                pass
+                
         raise ValueError(f"Could not find object '{query}': {e}")
     
     raise ValueError(f"Could not find object '{query}'")
