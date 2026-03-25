@@ -120,6 +120,8 @@ def get_earth_position(jd):
     t = Time(jd, format='jd', scale='utc')
     earth = get_body('earth', t)
     # Transform to ICRS (barycentric) and get cartesian coordinates
+    earth_bary = earth.transform_to('icrs')
+    cart = earth_bary.cartesian
     return {
         'x_au': cart.x.to(u.AU).value,
         'y_au': cart.y.to(u.AU).value,
