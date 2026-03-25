@@ -46,6 +46,16 @@ def lookup_object(query):
             name = str(result['main_id'][0])
             return {'ra': ra, 'dec': dec, 'name': name}
     except Exception as e:
+        # Try with capitalized first letter
+        try:
+            result = Simbad.query_object(query.title())
+            if result is not None and len(result) > 0:
+                ra = float(result['ra'][0])
+                dec = float(result['dec'][0])
+                name = str(result['main_id'][0])
+                return {'ra': ra, 'dec': dec, 'name': name}
+        except:
+            pass
         raise ValueError(f"Could not find object '{query}': {e}")
     
     raise ValueError(f"Could not find object '{query}'")
@@ -691,9 +701,13 @@ def check_rv_data(target_name, ra_hours=None, dec_deg=None):
     
     target_lower = target_name.lower().strip()
     
-    # Check known targets
+    # Check known targets (case-insensitive)
     for star, info in known_rv_stars.items():
-        if star in target_lower or target_lower in star:
+        star_lower = star.lower()
+        # Allow fuzzy matching: partial names, different capitalizations
+        if (star_lower in target_lower or target_lower in star_lower or
+            star_lower.replace(' ', '') == target_lower.replace(' ', '') or
+            star_lower.replace('-', ' ') == target_lower.replace('-', ' ')):
             results['has_rv_data'] = True
             results['sources'].append({
                 'name': f"DACE ({', '.join(info['instruments'])})",
