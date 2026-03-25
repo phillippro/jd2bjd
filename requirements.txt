@@ -1,3 +1,4 @@
 flask>=2.0.0
 astropy>=5.0
 numpy>=1.20
+astroquery>=0.4

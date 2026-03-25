@@ -9,10 +9,47 @@ Consider:
 """
 
 from flask import Flask, render_template_string, request, jsonify
+from astroquery.simbad import Simbad
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, get_body
 from astropy import units as u
 import math
+
+
+
+def lookup_object(query):
+    """
+    Look up object by name or parse coordinates.
+    
+    Args:
+        query: Object name (e.g., "Tau Ceti") or coordinates "RA, Dec"
+        
+    Returns:
+        dict with 'ra' (degrees), 'dec' (degrees), 'name' (if found)
+    """
+    # Try to parse as coordinates first
+    if ',' in query:
+        try:
+            parts = query.split(',')
+            ra = float(parts[0].strip())
+            dec = float(parts[1].strip())
+            return {'ra': ra, 'dec': dec, 'name': None}
+        except:
+            pass
+    
+    # Try SIMBAD lookup
+    try:
+        result = Simbad.query_object(query)
+        if result is not None and len(result) > 0:
+            ra = float(result['ra'][0])
+            dec = float(result['dec'][0])
+            name = str(result['main_id'][0])
+            return {'ra': ra, 'dec': dec, 'name': name}
+    except Exception as e:
+        raise ValueError(f"Could not find object '{query}': {e}")
+    
+    raise ValueError(f"Could not find object '{query}'")
+
 
 app = Flask(__name__)
 
@@ -139,10 +176,22 @@ def convert():
     data = request.json
     
     try:
-        # Parse input
+        # Parse input - check for target name first
         jd = float(data.get('jd', 0))
-        ra = data.get('ra', '0')
-        dec = data.get('dec', '0')
+        target = data.get('target', '')
+        
+        # Handle object name lookup
+        # If target is provided, SIMBAD returns RA in degrees - convert to hours
+        if target:
+            obj_info = lookup_object(target)
+            ra_deg = obj_info['ra']
+            dec = obj_info['dec']
+            # Convert degrees to hours (1 hour = 15 degrees)
+            ra = str(ra_deg / 15.0)  # Convert to hours for jd_to_bjd
+        else:
+            ra = data.get('ra', '0')
+            dec = data.get('dec', '0')
+        
         obs_name = data.get('observatory', 'Shanghai')
         parallax = float(data.get('parallax', 0))
         pmra = float(data.get('pmra', 0))
@@ -150,6 +199,13 @@ def convert():
         
         if jd == 0:
             return jsonify({'error': 'Please enter a valid JD'})
+        
+        # Validate coordinates
+        try:
+            float(ra)
+            float(dec)
+        except:
+            return jsonify({'error': 'Please provide valid RA/Dec or target name'})
         
         # Convert
         result = jd_to_bjd(jd, ra, dec, obs_name, parallax, pmra, pmdec)
