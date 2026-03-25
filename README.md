@@ -119,5 +119,6 @@ MIT License
 ## References
 
 - Eastman et al. (2010) - Precise transit timing
+- **Feng et al. (2019)** - [PEXO: A Global Photometric and Radial Velocity Model for Exoplanets](https://ui.adsabs.harvard.edu/abs/2019MNRAS.482.4008F)
 - Astropy Time Documentation
 - JPL Ephemerides (DE440)
