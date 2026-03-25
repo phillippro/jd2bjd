@@ -61,10 +61,25 @@ def jd_to_bjd(jd, ra, dec, obs_name='Shanghai', parallax=0, pmra=0, pmdec=0, rv_
                             height=obs['height']*u.m)
     
     # Create target coordinates
+    # Numeric RA is interpreted as HOURS (like OSU), string can be HMS or degrees
     if isinstance(ra, str):
-        coord = SkyCoord(ra=ra, dec=dec, unit=(u.hourangle, u.deg))
+        # Try to detect if it's HMS format or decimal
+        try:
+            # If it contains ':', treat as HMS
+            if ':' in ra:
+                coord = SkyCoord(ra=ra, dec=dec, unit=(u.hourangle, u.deg))
+            else:
+                # Try parsing as decimal - determine if hours or degrees
+                ra_val = float(ra)
+                if ra_val > 24:  # More than 24 hours = degrees
+                    coord = SkyCoord(ra=ra_val*u.deg, dec=dec*u.deg)
+                else:  # Treat as hours
+                    coord = SkyCoord(ra=ra_val*u.hourangle, dec=dec*u.deg)
+        except:
+            coord = SkyCoord(ra=ra, dec=dec, unit=(u.hourangle, u.deg))
     else:
-        coord = SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
+        # Numeric input: treat as HOURS (like OSU)
+        coord = SkyCoord(ra=ra*u.hourangle, dec=dec*u.deg)
     
     # Add parallax and proper motion
     if parallax > 0:
@@ -89,9 +104,6 @@ def jd_to_bjd(jd, ra, dec, obs_name='Shanghai', parallax=0, pmra=0, pmdec=0, rv_
     # BJD_TDB = TDB + LTT correction
     bjd_tdb = t_tdb + ltt
     
-    # Transform to ICRS (barycentric) and get cartesian coordinates
-    earth_bary = earth.transform_to('icrs')
-    cart = earth_bary.cartesian
     return {
         'bjd_tdb': bjd_tdb.value,
         'tdb': t_tdb.value,
