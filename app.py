@@ -62,31 +62,34 @@ def jd_to_bjd(jd, ra, dec, obs_name='Shanghai', parallax=0, pmra=0, pmdec=0, rv_
     
     # Create target coordinates
     # Numeric RA is interpreted as HOURS (like OSU), string can be HMS or degrees
+    # Get RA/dec values first
     if isinstance(ra, str):
-        # Try to detect if it's HMS format or decimal
-        try:
-            # If it contains ':', treat as HMS
-            if ':' in ra:
-                coord = SkyCoord(ra=ra, dec=dec, unit=(u.hourangle, u.deg))
-            else:
-                # Try parsing as decimal - determine if hours or degrees
+        if ':' in ra:
+            ra_val = ra
+            unit_ra = u.hourangle
+        else:
+            try:
                 ra_val = float(ra)
-                if ra_val > 24:  # More than 24 hours = degrees
-                    coord = SkyCoord(ra=ra_val*u.deg, dec=dec*u.deg)
-                else:  # Treat as hours
-                    coord = SkyCoord(ra=ra_val*u.hourangle, dec=dec*u.deg)
-        except:
-            coord = SkyCoord(ra=ra, dec=dec, unit=(u.hourangle, u.deg))
+                unit_ra = u.hourangle if ra_val <= 24 else u.deg
+            except:
+                ra_val = ra
+                unit_ra = u.hourangle
     else:
-        # Numeric input: treat as HOURS (like OSU)
-        coord = SkyCoord(ra=ra*u.hourangle, dec=dec*u.deg)
+        ra_val = ra * u.hourangle
+        unit_ra = u.hourangle
     
-    # Add parallax and proper motion
-    if parallax > 0:
-        coord.distance = (1000/parallax) * u.pc
-    if pmra != 0 or pmdec != 0:
-        coord.pm_ra_cosdec = pmra * u.mas/u.yr
-        coord.pm_dec = pmdec * u.mas/u.yr
+    # Create base coordinate
+    coord = SkyCoord(ra=ra_val, dec=dec, unit=(unit_ra, u.deg))
+    
+    # Add parallax (distance) and proper motion - must create new coord
+    if parallax > 0 or pmra != 0 or pmdec != 0:
+        distance = (1000/parallax) * u.pc if parallax > 0 else None
+        pm_ra = pmra * u.mas/u.yr if pmra != 0 else 0 * u.mas/u.yr
+        pm_dec = pmdec * u.mas/u.yr if pmdec != 0 else 0 * u.mas/u.yr
+        coord = SkyCoord(ra=coord.ra, dec=coord.dec, 
+                        distance=distance,
+                        pm_ra_cosdec=pm_ra, pm_dec=pm_dec,
+                        frame='icrs')
     
     # Convert to time object
     if isinstance(jd, (list, tuple)):
