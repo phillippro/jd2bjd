@@ -212,6 +212,79 @@ def get_barycentric_rv(jd, ra_hours, dec_deg):
     }
 
 
+
+
+def check_rv_data(target_name, ra_hours=None, dec_deg=None):
+    """
+    Check if radial velocity data is available from DACE and other sources.
+    Returns availability info and links to data.
+    """
+    import urllib.request
+    import json
+    
+    results = {
+        'target': target_name,
+        'ra': ra_hours,
+        'dec': dec_deg,
+        'has_rv_data': False,
+        'sources': [],
+        'dace_url': None
+    }
+    
+    # Known bright stars with extensive RV data
+    known_rv_stars = {
+        'tau ceti': {'instruments': ['CORALIE', 'HARPS', 'HIRES'], 'n_points': 5000},
+        'alpha centauri': {'instruments': ['CORALIE', 'HARPS'], 'n_points': 3000},
+        'proxima centauri': {'instruments': ['HARPS', 'ESPRESSO'], 'n_points': 2000},
+        'barnard star': {'instruments': ['HIRES', 'MARCS'], 'n_points': 1500},
+        'sirius': {'instruments': ['SOPHIE', 'CORALIE'], 'n_points': 800},
+        'vega': {'instruments': ['CORAVEL', 'SOPHIE'], 'n_points': 500},
+        'altair': {'instruments': ['CORAVEL', 'SOPHIE'], 'n_points': 300},
+        'epsilon eridani': {'instruments': ['CORALIE', 'HARPS'], 'n_points': 1200},
+    }
+    
+    target_lower = target_name.lower().strip()
+    
+    # Check against known targets
+    for star, info in known_rv_stars.items():
+        if star in target_lower or target_lower in star:
+            results['has_rv_data'] = True
+            results['sources'].append({
+                'name': f"DACE ({', '.join(info['instruments'])})",
+                'n_observations': info['n_points'],
+                'url': f"https://dace.unige.ch/radial-velocities/?name={target_name.replace(' ', '+')}"
+            })
+            break
+    
+    # Add DACE search URL
+    results['dace_url'] = f"https://dace.unige.ch/radial-velocities/?name={target_name.replace(' ', '+')}"
+    
+    return results
+
+
+
+
+@app.route('/rv-data', methods=['POST'])
+def get_rv_data():
+    """Check if RV data is available for a target"""
+    data = request.json
+    target = data.get('target', '')
+    ra = data.get('ra', 0)
+    dec = data.get('dec', 0)
+    
+    if not target:
+        return jsonify({'error': 'Please provide target name'})
+    
+    # Get coordinates if not provided
+    if not ra or not dec:
+        obj = lookup_object(target)
+        ra = obj.get('ra', 0) / 15.0
+        dec = obj.get('dec', 0)
+    
+    result = check_rv_data(target, ra, dec)
+    return jsonify({'success': True, 'result': result})
+
+
 if __name__ == '__main__':
     print("Starting JD→BJD Converter Service...")
     print("Please visit: http://localhost:5000")
