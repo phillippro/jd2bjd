@@ -408,6 +408,19 @@ HTML_TEMPLATE = '''
         <h1>🔭 JD → BJD Converter</h1>
         <p class="subtitle">Julian Date (JD) → Barycentric Julian Date (BJD-TDB)</p>
         
+        <div class="form-group" style="background: rgba(0,212,255,0.1); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <label style="color: #00d4ff; font-weight: bold;">Target Object (name or ID)</label>
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <input type="text" id="target" placeholder='e.g., "Tau Ceti" or "Alpha Centauri"' style="flex:1; padding: 10px; border: 1px solid #444; border-radius: 6px; background: #222; color: white;">
+                <button type="button" onclick="lookupTarget()" style="padding: 10px 20px; background: #00d4ff; color: #000; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Lookup</button>
+            </div>
+            <div id="lookup-result" style="margin-top: 8px; font-size: 12px; color: #888;"></div>
+            <div style="margin-top: 8px;">
+                <button type="button" onclick="checkRVData()" style="padding: 6px 12px; background: #27ae60; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Check RV Data</button>
+                <span id="rv-data-result" style="margin-left: 10px; font-size: 12px;"></span>
+            </div>
+        </div>
+        
         <div class="row">
             <div class="form-group">
                 <label>JD (Julian Date)</label>
@@ -513,27 +526,42 @@ HTML_TEMPLATE = '''
     <script>
         async function convert() {
             const jd = document.getElementById('jd').value;
+            const target = document.getElementById('target').value;
+            
             if (!jd) {
                 alert('Please enter JD');
+                return;
+            }
+            
+            if (!target && !document.getElementById('ra').value) {
+                alert('Please enter target name or coordinates');
                 return;
             }
             
             document.getElementById('loading').classList.add('show');
             document.getElementById('result').classList.remove('show');
             
+            const payload = {
+                jd: parseFloat(jd),
+                observatory: document.getElementById('observatory').value,
+                parallax: parseFloat(document.getElementById('parallax').value) || 0,
+                pmra: parseFloat(document.getElementById('pmra').value) || 0,
+                pmdec: parseFloat(document.getElementById('pmdec').value) || 0,
+            };
+            
+            // Use target name if provided, otherwise use coordinates
+            if (target) {
+                payload.target = target;
+            } else {
+                payload.ra = document.getElementById('ra').value;
+                payload.dec = document.getElementById('dec').value;
+            }
+            
             try {
                 const response = await fetch('/convert', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        jd: parseFloat(jd),
-                        ra: document.getElementById('ra').value,
-                        dec: document.getElementById('dec').value,
-                        observatory: document.getElementById('observatory').value,
-                        parallax: parseFloat(document.getElementById('parallax').value) || 0,
-                        pmra: parseFloat(document.getElementById('pmra').value) || 0,
-                        pmdec: parseFloat(document.getElementById('pmdec').value) || 0,
-                    })
+                    body: JSON.stringify(payload)
                 });
                 
                 const data = await response.json();
