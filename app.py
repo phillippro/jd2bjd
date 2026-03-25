@@ -17,17 +17,55 @@ import math
 
 
 
+# Common star name aliases - for fuzzy matching of common star names
+STAR_ALIASES = {
+    # Bright stars - various formats
+    'alpha centauri': 'Alpha Centauri', 'alphacentauri': 'Alpha Centauri', 'alpha cen': 'Alpha Centauri',
+    'tau ceti': 'Tau Ceti', 'tauceti': 'Tau Ceti', 'tau cet': 'Tau Ceti',
+    'proxima': 'Proxima Centauri', 'proximacentauri': 'Proxima Centauri',
+    'sirius': 'Sirius', 'dog star': 'Sirius',
+    'vega': 'Vega', 'altair': 'Altair', 'pollux': 'Pollux', 'betelgeuse': 'Betelgeuse',
+    'rigel': 'Rigel', 'procyon': 'Procyon', 'arcturus': 'Arcturus', 'aldebaran': 'Aldebaran',
+    'antares': 'Antares', 'deneb': 'Deneb', 'fomalhaut': 'Fomalhaut', 'regulus': 'Regulus',
+    'castor': 'Castor', 'capella': 'Capella', 'achernar': 'Achernar', 'spica': 'Spica',
+    'polaris': 'Polaris', 'canopus': 'Canopus', 'barnard': 'Barnard Star',
+    'epsilon eridani': 'Epsilon Eridani', '51 peg': '51 Pegasi',
+    'gliese 581': 'Gliese 581', 'hd 209458': 'HD 209458', 'hd 189733': 'HD 189733',
+    
+    # Solar system objects
+    'sun': 'Sun', 'moon': 'Moon', 'jupiter': 'Jupiter', 'mars': 'Mars',
+    'venus': 'Venus', 'mercury': 'Mercury', 'saturn': 'Saturn',
+    'uranus': 'Uranus', 'neptune': 'Neptune',
+}
+
 def lookup_object(query):
     """
     Look up object by name or parse coordinates.
-    Supports: common names, Hipparcos (HIP), Henry Draper (HD), Gliese (GJ), etc.
+    Uses STAR_ALIASES for common names + SIMBAD.
     
     Args:
-        query: Object name (e.g., "Tau Ceti", "HIP 71683", "HD 209458")
+        query: Object name (any valid identifier)
         
     Returns:
         dict with 'ra' (degrees), 'dec' (degrees), 'name' (if found)
     """
+    # Check alias dictionary first (case-insensitive)
+    query_lower = query.lower().strip()
+    if query_lower in STAR_ALIASES:
+        canonical = STAR_ALIASES[query_lower]
+        # Solar system objects - return special flag
+        solar_system = ['Sun', 'Moon', 'Jupiter', 'Mars', 'Venus', 'Mercury', 'Saturn', 'Uranus', 'Neptune']
+        if canonical in solar_system:
+            return {'ra': 0, 'dec': 0, 'name': canonical, 'solar_system': True}
+        try:
+            result = Simbad.query_object(canonical)
+            if result is not None and len(result) > 0:
+                ra = float(result['ra'][0])
+                dec = float(result['dec'][0])
+                return {'ra': ra, 'dec': dec, 'name': canonical}
+        except:
+            pass
+    
     # Try to parse as coordinates first
     if ',' in query:
         try:
@@ -47,30 +85,6 @@ def lookup_object(query):
             name = str(result['main_id'][0])
             return {'ra': ra, 'dec': dec, 'name': name}
     except Exception as e:
-        # Try different capitalizations
-        for variant in [query.upper(), query.lower(), query.title()]:
-            try:
-                result = Simbad.query_object(variant)
-                if result is not None and len(result) > 0:
-                    ra = float(result['ra'][0])
-                    dec = float(result['dec'][0])
-                    name = str(result['main_id'][0])
-                    return {'ra': ra, 'dec': dec, 'name': name}
-            except:
-                continue
-        
-        # Try adding "HIP" prefix if not present
-        if not query.upper().startswith('HIP'):
-            try:
-                result = Simbad.query_object('HIP ' + query)
-                if result is not None and len(result) > 0:
-                    ra = float(result['ra'][0])
-                    dec = float(result['dec'][0])
-                    name = str(result['main_id'][0])
-                    return {'ra': ra, 'dec': dec, 'name': name}
-            except:
-                pass
-                
         raise ValueError(f"Could not find object '{query}': {e}")
     
     raise ValueError(f"Could not find object '{query}'")
@@ -262,23 +276,6 @@ def convert():
         return jsonify({'error': str(e)})
 
 
-
-
-@app.route('/lookup', methods=['POST'])
-def lookup():
-    """Look up object by name"""
-    data = request.json
-    target = data.get('target', '')
-    
-    if not target:
-        return jsonify({'error': 'Please provide target name'})
-    
-    try:
-        result = lookup_object(target)
-        return jsonify({'success': True, 'result': result})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
 @app.route('/batch', methods=['POST'])
 def batch_convert():
     """Batch convert multiple JD values"""
@@ -433,19 +430,6 @@ HTML_TEMPLATE = '''
         <h1>🔭 JD → BJD Converter</h1>
         <p class="subtitle">Julian Date (JD) → Barycentric Julian Date (BJD-TDB)</p>
         
-        <div class="form-group" style="background: rgba(0,212,255,0.1); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-            <label style="color: #00d4ff; font-weight: bold;">Target Object (name or ID)</label>
-            <div style="display: flex; gap: 10px; margin-top: 8px;">
-                <input type="text" id="target" placeholder='e.g., "Tau Ceti" or "Alpha Centauri"' style="flex:1; padding: 10px; border: 1px solid #444; border-radius: 6px; background: #222; color: white;">
-                <button type="button" onclick="lookupTarget()" style="padding: 10px 20px; background: #00d4ff; color: #000; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Lookup</button>
-            </div>
-            <div id="lookup-result" style="margin-top: 8px; font-size: 12px; color: #888;"></div>
-            <div style="margin-top: 8px;">
-                <button type="button" onclick="checkRVData()" style="padding: 6px 12px; background: #27ae60; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Check RV Data</button>
-                <span id="rv-data-result" style="margin-left: 10px; font-size: 12px;"></span>
-            </div>
-        </div>
-        
         <div class="row">
             <div class="form-group">
                 <label>JD (Julian Date)</label>
@@ -551,42 +535,27 @@ HTML_TEMPLATE = '''
     <script>
         async function convert() {
             const jd = document.getElementById('jd').value;
-            const target = document.getElementById('target').value;
-            
             if (!jd) {
                 alert('Please enter JD');
-                return;
-            }
-            
-            if (!target && !document.getElementById('ra').value) {
-                alert('Please enter target name or coordinates');
                 return;
             }
             
             document.getElementById('loading').classList.add('show');
             document.getElementById('result').classList.remove('show');
             
-            const payload = {
-                jd: parseFloat(jd),
-                observatory: document.getElementById('observatory').value,
-                parallax: parseFloat(document.getElementById('parallax').value) || 0,
-                pmra: parseFloat(document.getElementById('pmra').value) || 0,
-                pmdec: parseFloat(document.getElementById('pmdec').value) || 0,
-            };
-            
-            // Use target name if provided, otherwise use coordinates
-            if (target) {
-                payload.target = target;
-            } else {
-                payload.ra = document.getElementById('ra').value;
-                payload.dec = document.getElementById('dec').value;
-            }
-            
             try {
                 const response = await fetch('/convert', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        jd: parseFloat(jd),
+                        ra: document.getElementById('ra').value,
+                        dec: document.getElementById('dec').value,
+                        observatory: document.getElementById('observatory').value,
+                        parallax: parseFloat(document.getElementById('parallax').value) || 0,
+                        pmra: parseFloat(document.getElementById('pmra').value) || 0,
+                        pmdec: parseFloat(document.getElementById('pmdec').value) || 0,
+                    })
                 });
                 
                 const data = await response.json();
@@ -616,136 +585,11 @@ HTML_TEMPLATE = '''
         
         // Default to current time
         document.getElementById('jd').value = Math.floor(Date.now()/86400000 + 2440587.5);
-        
-        // Lookup object name
-        async function lookupTarget() {
-            const target = document.getElementById('target').value;
-            if (!target) { alert('Please enter an object name'); return; }
-            
-            document.getElementById('lookup-result').textContent = 'Looking up...';
-            
-            try {
-                const response = await fetch('/lookup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target })
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    document.getElementById('lookup-result').textContent = 
-                        `Found: ${data.result.name || target} | RA: ${data.result.ra.toFixed(4)}° | Dec: ${data.result.dec.toFixed(4)}°`;
-                    document.getElementById('ra').value = (data.result.ra / 15).toFixed(5);
-                    document.getElementById('dec').value = data.result.dec.toFixed(5);
-                    checkRVDataSilent(target);
-                } else {
-                    document.getElementById('lookup-result').textContent = 'Error: ' + data.error;
-                }
-            } catch (e) {
-                document.getElementById('lookup-result').textContent = 'Error: ' + e.message;
-            }
-        }
-        
-        // Silent RV check
-        async function checkRVDataSilent(target) {
-            try {
-                const response = await fetch('/rv-data', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target })
-                });
-                const data = await response.json();
-                
-                if (data.success && data.result.has_rv_data) {
-                    const r = data.result;
-                    let msg = '📊 RV: ';
-                    msg += r.sources.map(s => s.name + ` (${s.n_observations} obs)`).join(', ');
-                    document.getElementById('lookup-result').innerHTML += '<br><span style="color: #27ae60;">' + msg + '</span>';
-                } else {
-                    document.getElementById('lookup-result').innerHTML += '<br><span style="color: #e74c3c;">No known RV data</span>';
-                }
-            } catch (e) { console.log('RV check error:', e); }
-        }
-        
-        // Check RV data (user triggered)
-        async function checkRVData() {
-            const target = document.getElementById('target').value;
-            if (!target) { 
-                document.getElementById('rv-data-result').textContent = 'Enter target name first';
-                return;
-            }
-            await checkRVDataSilent(target);
-        }
     </script>
 </body>
 </html>
 '''
 
-
-
-
-def check_rv_data(target_name, ra_hours=None, dec_deg=None):
-    """Check if radial velocity data is available from DACE and other sources."""
-    import urllib.request
-    import urllib.parse
-    import json
-    import ssl
-    
-    results = {
-        'target': target_name,
-        'has_rv_data': False,
-        'sources': [],
-        'dace_url': f"https://dace.unige.ch/radial-velocities/?name={urllib.parse.quote(target_name)}"
-    }
-    
-    # Comprehensive database of known RV targets
-    known_rv_stars = {
-        'tau ceti': {'instruments': ['CORALIE', 'HARPS', 'HIRES'], 'n_points': 5500},
-        'alpha centauri': {'instruments': ['CORALIE', 'HARPS'], 'n_points': 3500},
-        'proxima centauri': {'instruments': ['HARPS', 'ESPRESSO'], 'n_points': 4500},
-        'barnard star': {'instruments': ['HIRES', 'MARCS'], 'n_points': 2500},
-        'sirius': {'instruments': ['SOPHIE', 'CORALIE'], 'n_points': 1200},
-        'vega': {'instruments': ['CORAVEL', 'SOPHIE'], 'n_points': 650},
-        'altair': {'instruments': ['CORAVEL', 'SOPHIE'], 'n_points': 450},
-        'epsilon eridani': {'instruments': ['CORALIE', 'HARPS'], 'n_points': 1800},
-        '51 peg': {'instruments': ['ELODIE', 'CORALIE', 'HARPS'], 'n_points': 1200},
-        'hd 209458': {'instruments': ['ELODIE', 'CORALIE', 'HARPS'], 'n_points': 950},
-        'hd 189733': {'instruments': ['HARPS', 'SOPHIE'], 'n_points': 850},
-        'gliese 581': {'instruments': ['HARPS'], 'n_points': 250},
-    }
-    
-    target_lower = target_name.lower().strip()
-    
-    # Check known targets (case-insensitive)
-    for star, info in known_rv_stars.items():
-        star_lower = star.lower()
-        # Allow fuzzy matching: partial names, different capitalizations
-        if (star_lower in target_lower or target_lower in star_lower or
-            star_lower.replace(' ', '') == target_lower.replace(' ', '') or
-            star_lower.replace('-', ' ') == target_lower.replace('-', ' ')):
-            results['has_rv_data'] = True
-            results['sources'].append({
-                'name': f"DACE ({', '.join(info['instruments'])})",
-                'n_observations': info['n_points'],
-                'url': results['dace_url']
-            })
-            break
-    
-    return results
-
-
-
-@app.route('/rv-data', methods=['POST'])
-def get_rv_data():
-    """Check if RV data is available for a target"""
-    data = request.json
-    target = data.get('target', '')
-    
-    if not target:
-        return jsonify({'error': 'Please provide target name'})
-    
-    result = check_rv_data(target)
-    return jsonify({'success': True, 'result': result})
 
 if __name__ == '__main__':
     print("Starting JD→BJD Converter Service...")
